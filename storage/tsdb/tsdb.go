@@ -84,7 +84,7 @@ func (s *ReadyStorage) Appender() (storage.Appender, error) {
 	if x := s.get(); x != nil {
 		return x.Appender()
 	}
-	return nil, ErrNotReady
+	return nil, nil
 }
 
 // Close implements the Storage interface.
@@ -283,35 +283,11 @@ type appender struct {
 }
 
 func (a appender) Add(lset labels.Labels, t int64, v float64) (uint64, error) {
-	ref, err := a.a.Add(toTSDBLabels(lset), t, v)
-
-	switch errors.Cause(err) {
-	case tsdb.ErrNotFound:
-		return 0, storage.ErrNotFound
-	case tsdb.ErrOutOfOrderSample:
-		return 0, storage.ErrOutOfOrderSample
-	case tsdb.ErrAmendSample:
-		return 0, storage.ErrDuplicateSampleForTimestamp
-	case tsdb.ErrOutOfBounds:
-		return 0, storage.ErrOutOfBounds
-	}
-	return ref, err
+	return 0, nil
 }
 
 func (a appender) AddFast(_ labels.Labels, ref uint64, t int64, v float64) error {
-	err := a.a.AddFast(ref, t, v)
-
-	switch errors.Cause(err) {
-	case tsdb.ErrNotFound:
-		return storage.ErrNotFound
-	case tsdb.ErrOutOfOrderSample:
-		return storage.ErrOutOfOrderSample
-	case tsdb.ErrAmendSample:
-		return storage.ErrDuplicateSampleForTimestamp
-	case tsdb.ErrOutOfBounds:
-		return storage.ErrOutOfBounds
-	}
-	return err
+	return nil
 }
 
 func (a appender) Commit() error   { return a.a.Commit() }
