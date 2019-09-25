@@ -17,6 +17,7 @@ type RedisStorage struct {
 	c chan *CmdBatch
 	logger log.Logger
 	rpool *radix.Pool
+	cache map[uint64]string
 }
 
 func NewRedisStorage(logger log.Logger) *RedisStorage {
@@ -28,13 +29,13 @@ func NewRedisStorage(logger log.Logger) *RedisStorage {
 		logger: logger,
 		c: make(chan *CmdBatch, CHANNEL_BUFFER),
 		rpool: rpool,
+		cache: make(map[uint64]string),
 	}
 	go rs.send()
 	return rs
 }
 
 func (r *RedisStorage) send() {
-	//batch := <- r.c
 	for batch := range r.c {
 		e := r.rpool.Do(radix.Pipeline(*batch...))
 		if e!= nil {
@@ -53,7 +54,7 @@ func (r *RedisStorage) StartTime() (int64, error) {
 }
 
 func (r *RedisStorage) Appender() (storage.Appender, error) {
-	return NewRedisAppender(r.logger, r.c, r.rpool), nil
+	return NewRedisAppender(r.logger, r.c, r.cache, r.rpool), nil
 }
 
 func (r *RedisStorage) Close() error {

@@ -24,11 +24,11 @@ type RedisAppender struct {
 	rpool       *radix.Pool
 }
 
-func NewRedisAppender(logger log.Logger, sc chan *CmdBatch, pool *radix.Pool) *RedisAppender {
+func NewRedisAppender(logger log.Logger, sc chan *CmdBatch, cache map[uint64]string, pool *radix.Pool) *RedisAppender {
 	return &RedisAppender{
 		batch: make(CmdBatch, 0, BATCH_SIZE),
 		sendChannel: sc,
-		cache: make(map[uint64]string),
+		cache: cache,
 		logger: logger,
 		rpool: pool,
 	}
