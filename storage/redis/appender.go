@@ -69,12 +69,13 @@ func (r *RedisAppender) addToBatch(keyName string, t int64, v float64, l labels.
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return
 	}
-	args := []string{
+	args := make([]string, 0, 4 + len(l))
+	args = append(args,
 		keyName,
 		strconv.FormatInt(t, 10),
 		strconv.FormatFloat(v, 'f', 6, 64),
-		LABELS,
-	}
+		LABELS)
+
 	for i := range l {
 		args = append(args, l[i].Name, l[i].Value)
 	}

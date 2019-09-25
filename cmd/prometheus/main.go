@@ -356,7 +356,7 @@ func main() {
 		discoveryManagerNotify  = discovery.NewManager(ctxNotify, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
 
 		// TODO: replace with redis
-		scrapeManager = scrape.NewManager(log.With(logger, "component", "scrape manager"), fanoutStorage)
+		scrapeManager = scrape.NewManager(log.With(logger, "component", "scrape manager"), redisStorage)
 
 		opts = promql.EngineOpts{
 			Logger:             log.With(logger, "component", "query engine"),
