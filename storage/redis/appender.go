@@ -2,6 +2,7 @@ package redis
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/mediocregopher/radix/v3"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"golang.org/x/sync/syncmap"
 )
 const TS_ADD = "TS.ADD"
 const LABELS = "LABELS"
@@ -18,13 +20,13 @@ type CmdBatch []radix.CmdAction
 
 type RedisAppender struct {
 	batch       CmdBatch
-	cache       map[uint64]string
+	cache       *syncmap.Map
 	sendChannel chan *CmdBatch
 	logger      log.Logger
 	rpool       *radix.Pool
 }
 
-func NewRedisAppender(logger log.Logger, sc chan *CmdBatch, cache map[uint64]string, pool *radix.Pool) *RedisAppender {
+func NewRedisAppender(logger log.Logger, sc chan *CmdBatch, cache *syncmap.Map, pool *radix.Pool) *RedisAppender {
 	return &RedisAppender{
 		batch: make(CmdBatch, 0, BATCH_SIZE),
 		sendChannel: sc,
@@ -60,7 +62,7 @@ func metricToKeyName(ls labels.Labels) (keyName string) {
 func (r *RedisAppender) Add(l labels.Labels, t int64, v float64) (uint64, error) {
 	keyName := metricToKeyName(l)
 	ref := l.Hash()
-	r.cache[ref] = keyName
+	r.cache.Store(ref, keyName)
 	r.addToBatch(keyName, t, v, l)
 	return ref, nil
 }
@@ -83,8 +85,11 @@ func (r *RedisAppender) addToBatch(keyName string, t int64, v float64, l labels.
 }
 
 func (r *RedisAppender) AddFast(l labels.Labels, ref uint64, t int64, v float64) error {
-	keyName := r.cache[ref]
-	r.addToBatch(keyName, t, v, l)
+	keyName, ok := r.cache.Load(ref)
+	if !ok {
+		return errors.New("not found in cache")
+	}
+	r.addToBatch(keyName.(string), t, v, l)
 	return nil
 }
 

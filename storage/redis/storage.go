@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/storage"
+	"golang.org/x/sync/syncmap"
 
 	"github.com/mediocregopher/radix/v3"
 )
@@ -17,7 +18,7 @@ type RedisStorage struct {
 	c chan *CmdBatch
 	logger log.Logger
 	rpool *radix.Pool
-	cache map[uint64]string
+	cache syncmap.Map
 }
 
 func NewRedisStorage(logger log.Logger) *RedisStorage {
@@ -29,7 +30,6 @@ func NewRedisStorage(logger log.Logger) *RedisStorage {
 		logger: logger,
 		c: make(chan *CmdBatch, CHANNEL_BUFFER),
 		rpool: rpool,
-		cache: make(map[uint64]string),
 	}
 	go rs.send()
 	return rs
@@ -54,7 +54,7 @@ func (r *RedisStorage) StartTime() (int64, error) {
 }
 
 func (r *RedisStorage) Appender() (storage.Appender, error) {
-	return NewRedisAppender(r.logger, r.c, r.cache, r.rpool), nil
+	return NewRedisAppender(r.logger, r.c, &r.cache, r.rpool), nil
 }
 
 func (r *RedisStorage) Close() error {
