@@ -18,6 +18,7 @@ type RedisStorage struct {
 	c chan *CmdBatch
 	logger log.Logger
 	rpool *radix.Pool
+	readpool *radix.Pool
 	cache syncmap.Map
 }
 
@@ -26,10 +27,16 @@ func NewRedisStorage(logger log.Logger) *RedisStorage {
 	if err != nil {
 		panic(err)
 	}
+
+	readpool, err := radix.NewPool("tcp", "redis://localhost:6379", 10, radix.PoolPipelineWindow(0, 0))
+	if err != nil {
+		panic(err)
+	}
 	rs := &RedisStorage{
 		logger: logger,
 		c: make(chan *CmdBatch, CHANNEL_BUFFER),
 		rpool: rpool,
+		readpool: readpool,
 	}
 	go rs.send()
 	return rs
@@ -46,7 +53,7 @@ func (r *RedisStorage) send() {
 }
 
 func (r *RedisStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
-	return nil, nil
+	return NewRedisQuerier(r.readpool), nil
 }
 
 func (r *RedisStorage) StartTime() (int64, error) {
@@ -54,7 +61,7 @@ func (r *RedisStorage) StartTime() (int64, error) {
 }
 
 func (r *RedisStorage) Appender() (storage.Appender, error) {
-	return NewRedisAppender(r.logger, r.c, &r.cache, r.rpool), nil
+	return NewRedisAppender(r.logger, r.c, &r.cache), nil
 }
 
 func (r *RedisStorage) Close() error {
