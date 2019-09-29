@@ -2,6 +2,9 @@ package redis
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -12,7 +15,7 @@ import (
 	"github.com/mediocregopher/radix/v3"
 )
 
-const CHANNEL_BUFFER = 1000
+const ChannelBuffer = 100
 
 type RedisStorage struct {
 	c chan *CmdBatch
@@ -22,19 +25,60 @@ type RedisStorage struct {
 	cache syncmap.Map
 }
 
-func NewRedisStorage(logger log.Logger) *RedisStorage {
-	rpool, err := radix.NewPool("tcp", "redis://localhost:6379", 10, radix.PoolPipelineConcurrency(10))
-	if err != nil {
-		panic(err)
+func CreatePools(urlStr string) (*radix.Pool, *radix.Pool, error) {
+	parsedUrl, e := url.Parse(urlStr)
+	if e != nil {
+		return nil,	nil, e
 	}
+	poolSize := 10
 
-	readpool, err := radix.NewPool("tcp", "redis://localhost:6379", 10, radix.PoolPipelineWindow(0, 0))
+	if parsedUrl.Scheme == "redis" {
+		writePool, err := radix.NewPool("tcp", urlStr, poolSize)
+		if err != nil {
+			return nil, nil, err
+		}
+		readPool, err := radix.NewPool("tcp", urlStr, poolSize, radix.PoolPipelineWindow(0, 0))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return writePool, readPool, nil
+	} else if parsedUrl.Scheme == "sentinel" {
+		sentinel, e := radix.NewSentinel(strings.Replace(parsedUrl.Path, "/", "", 1), []string{parsedUrl.Host})
+		if e != nil {
+			return nil, nil, e
+		}
+		connFunc := radix.PoolConnFunc(func(network, _ string) (conn radix.Conn, e error) {
+			primary, _ := sentinel.Addrs()
+			return radix.DefaultConnFunc(network, primary)
+		})
+		writePool, err := radix.NewPool("tcp", urlStr, poolSize, connFunc)
+		if err != nil {
+			return nil, nil, err
+		}
+		readPool, err := radix.NewPool("tcp", urlStr, poolSize, connFunc, radix.PoolPipelineWindow(0, 0))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return writePool, readPool, nil
+
+	} else {
+		return nil, nil, fmt.Errorf("unkown scheme: %s", parsedUrl.Scheme)
+	}
+}
+
+func NewRedisStorage(logger log.Logger, url string) *RedisStorage {
+	if url == "" {
+		return nil
+	}
+	rpool, readpool, err := CreatePools(url)
 	if err != nil {
 		panic(err)
 	}
 	rs := &RedisStorage{
 		logger: logger,
-		c: make(chan *CmdBatch, CHANNEL_BUFFER),
+		c: make(chan *CmdBatch, ChannelBuffer),
 		rpool: rpool,
 		readpool: readpool,
 	}
