@@ -62,6 +62,7 @@ import (
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/storage/redis"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/prometheus/prometheus/tsdb"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -107,6 +108,7 @@ func main() {
 		configFile string
 
 		localStoragePath    string
+		redisAddress		string
 		notifier            notifier.Options
 		notifierTimeout     model.Duration
 		forGracePeriod      model.Duration
@@ -183,6 +185,9 @@ func main() {
 
 	a.Flag("web.cors.origin", `Regex for CORS origin. It is fully anchored. Example: 'https?://(domain1|domain2)\.com'`).
 		Default(".*").StringVar(&cfg.corsRegexString)
+
+	a.Flag("redis.address", "Redis url for read/write instead of local storage.").
+		Default("").StringVar(&cfg.redisAddress)
 
 	a.Flag("storage.tsdb.path", "Base path for metrics storage.").
 		Default("data/").StringVar(&cfg.localStoragePath)
@@ -349,7 +354,16 @@ func main() {
 	var (
 		localStorage  = &readyStorage{}
 		remoteStorage = remote.NewStorage(log.With(logger, "component", "remote"), prometheus.DefaultRegisterer, localStorage.StartTime, cfg.localStoragePath, time.Duration(cfg.RemoteFlushDeadline))
-		fanoutStorage = storage.NewFanout(logger, localStorage, remoteStorage)
+		redisStorage = redis.NewRedisStorage(log.With(logger, "component", "redis"), cfg.redisAddress)
+
+		pickStorage = func() storage.Storage {
+			if cfg.redisAddress != "" {
+				return redisStorage
+			} else {
+				return localStorage
+			}
+		}
+		fanoutStorage = storage.NewFanout(logger, pickStorage(), remoteStorage)
 	)
 
 	var (
@@ -364,7 +378,7 @@ func main() {
 		ctxNotify, cancelNotify = context.WithCancel(context.Background())
 		discoveryManagerNotify  = discovery.NewManager(ctxNotify, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
 
-		scrapeManager = scrape.NewManager(log.With(logger, "component", "scrape manager"), fanoutStorage)
+		scrapeManager = scrape.NewManager(log.With(logger, "component", "scrape manager"), pickStorage())
 
 		opts = promql.EngineOpts{
 			Logger:             log.With(logger, "component", "query engine"),

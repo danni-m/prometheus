@@ -43,6 +43,7 @@ require (
 	github.com/miekg/dns v1.1.30
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/mediocregopher/radix/v3 v3.4.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1

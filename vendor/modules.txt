@@ -289,6 +289,12 @@ github.com/mattn/go-colorable
 github.com/mattn/go-isatty
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/mediocregopher/radix/v3 v3.4.0
+github.com/mediocregopher/radix/v3
+github.com/mediocregopher/radix/v3/internal/bytesutil
+github.com/mediocregopher/radix/v3/resp
+github.com/mediocregopher/radix/v3/resp/resp2
+github.com/mediocregopher/radix/v3/trace
 # github.com/miekg/dns v1.1.30
 github.com/miekg/dns
 # github.com/mitchellh/go-homedir v1.1.0
@@ -440,6 +446,7 @@ golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 golang.org/x/sync/errgroup
+golang.org/x/sync/syncmap
 # golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
