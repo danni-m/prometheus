@@ -25,6 +25,10 @@ type RedisStorage struct {
 	cache syncmap.Map
 }
 
+func (r *RedisStorage) ChunkQuerier(ctx context.Context, mint, maxt int64) (storage.ChunkQuerier, error) {
+	panic("Not implemented")
+}
+
 func CreatePools(urlStr string) (*radix.Pool, *radix.Pool, error) {
 	parsedUrl, e := url.Parse(urlStr)
 	if e != nil {
@@ -88,7 +92,8 @@ func NewRedisStorage(logger log.Logger, url string) *RedisStorage {
 
 func (r *RedisStorage) send() {
 	for batch := range r.c {
-		e := r.rpool.Do(radix.Pipeline(*batch...))
+		pipeline := radix.Pipeline(*batch...)
+		e := r.rpool.Do(pipeline)
 		if e!= nil {
 			_ = level.Error(r.logger).Log("msg", "Send failed", "error", e)
 		}
@@ -104,8 +109,8 @@ func (r *RedisStorage) StartTime() (int64, error) {
 	return int64(model.Latest), nil
 }
 
-func (r *RedisStorage) Appender() (storage.Appender, error) {
-	return NewRedisAppender(r.logger, r.c, &r.cache), nil
+func (r *RedisStorage) Appender() storage.Appender {
+	return NewRedisAppender(r.logger, r.c, &r.cache)
 }
 
 func (r *RedisStorage) Close() error {

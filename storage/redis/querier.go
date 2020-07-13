@@ -11,6 +11,7 @@ import (
 	"github.com/mediocregopher/radix/v3/resp/resp2"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunkenc"
 )
 
 const TS_MRANGE = "TS.MRANGE"
@@ -60,7 +61,7 @@ type Sample struct {
 func (s *Sample) UnmarshalRESP(br *bufio.Reader) error {
 	var rootArray resp2.ArrayHeader
 	var t resp2.Int
-	var v resp2.BulkString
+	var v resp2.SimpleString
 	if err := rootArray.UnmarshalRESP(br); err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func (r *RedisTSResult) Labels() labels.Labels {
 	return r.labels.L
 }
 
-func (r *RedisTSResult) Iterator() storage.SeriesIterator {
+func (r *RedisTSResult) Iterator() chunkenc.Iterator {
 	return &RedisTSResultIterator{result: r}
 }
 
@@ -169,6 +170,11 @@ func (r *RedisTSResult) UnmarshalRESP(br *bufio.Reader) error {
 type RedisMRangeResult struct {
 	Results []RedisTSResult
 	index   int
+	err		error
+}
+
+func (r *RedisMRangeResult) Warnings() storage.Warnings {
+	return storage.Warnings{}
 }
 
 func (r *RedisMRangeResult) Next() bool {
@@ -185,7 +191,7 @@ func (r *RedisMRangeResult) At() storage.Series {
 }
 
 func (r *RedisMRangeResult) Err() error {
-	return nil
+	return r.err
 }
 
 func (r *RedisMRangeResult) UnmarshalRESP(br *bufio.Reader) error {
@@ -228,14 +234,14 @@ func labelMatcherFormat(l *labels.Matcher) (string, error) {
 	return buf.String(), nil
 }
 
-func (r *RedisQuerier) Select(sp *storage.SelectParams, ls ...*labels.Matcher) (storage.SeriesSet, storage.Warnings, error) {
+func (r *RedisQuerier) Select(sortSeries bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	var args []string
-	args = append(args, strconv.FormatInt(sp.Start, 10), strconv.FormatInt(sp.End, 10))
+	args = append(args, strconv.FormatInt(hints.Start, 10), strconv.FormatInt(hints.End, 10), "WITHLABELS")
 	args = append(args, FILTER)
-	for l := range ls {
-		matcher, err := labelMatcherFormat(ls[l])
+	for l := range matchers {
+		matcher, err := labelMatcherFormat(matchers[l])
 		if err != nil {
-			return nil, nil, err
+			return &RedisMRangeResult{err: err}
 		}
 		args = append(args, matcher)
 	}
@@ -243,9 +249,9 @@ func (r *RedisQuerier) Select(sp *storage.SelectParams, ls ...*labels.Matcher) (
 	cmd := radix.Cmd(&result, TS_MRANGE, args...)
 	err := r.rpool.Do(cmd)
 	if err != nil {
-		return nil, nil, err
+		return &RedisMRangeResult{err: err}
 	}
-	return &result, nil, nil
+	return &result
 }
 
 func (r *RedisQuerier) LabelValues(name string) ([]string, storage.Warnings, error) {

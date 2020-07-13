@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/mediocregopher/radix/v3"
+	"github.com/mediocregopher/radix/v3/resp/resp2"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/sync/syncmap"
 )
@@ -24,6 +26,17 @@ type RedisAppender struct {
 	sendChannel chan *CmdBatch
 	logger      log.Logger
 }
+
+type DummyResult struct {
+}
+
+func (d *DummyResult) UnmarshalRESP(br *bufio.Reader) error {
+	var r resp2.Int
+	err := r.UnmarshalRESP(br)
+	return err
+}
+
+var DR DummyResult
 
 func NewRedisAppender(logger log.Logger, sc chan *CmdBatch, cache *syncmap.Map) *RedisAppender {
 	return &RedisAppender{
@@ -79,15 +92,16 @@ func (r *RedisAppender) addToBatch(keyName string, t int64, v float64, l labels.
 	for i := range l {
 		args = append(args, l[i].Name, l[i].Value)
 	}
-	r.batch = append(r.batch, radix.Cmd(nil, TS_ADD, args...))
+
+	r.batch = append(r.batch, radix.Cmd(&DR, TS_ADD, args...))
 }
 
-func (r *RedisAppender) AddFast(l labels.Labels, ref uint64, t int64, v float64) error {
+func (r *RedisAppender) AddFast(ref uint64, t int64, v float64) error {
 	keyName, ok := r.cache.Load(ref)
 	if !ok {
 		return errors.New("not found in cache")
 	}
-	r.addToBatch(keyName.(string), t, v, l)
+	r.addToBatch(keyName.(string), t, v, nil)
 	return nil
 }
 
